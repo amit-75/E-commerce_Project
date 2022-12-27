@@ -51,6 +51,14 @@ class Products(db.Model,UserMixin):
     Product_image = db.Column(db.String(10000), nullable=False)
     stock = db.Column(db.Integer, nullable=False)
 
+    def serialize(self):
+        return {
+            'id': self.id,
+            'Product_name': self.Product_name,
+            'Price': self.Price,
+            'stock': self.stock
+        }
+
     def __repr__(self):
         return self.Product_name
 
@@ -68,6 +76,12 @@ class order(db.Model):
 @login_manager.user_loader
 def load_user(id):
     return customer.query.get(int(id))
+
+@app.route('/test')
+def test():
+    products = Products.query.all()
+    products_dict = [product.serialize() for product in products]
+    return jsonify(products_dict)
 
 @app.route('/')
 def index():
@@ -121,17 +135,18 @@ def seller_signup():
 @app.route('/customer_login', methods=['POST'])
 def customer_login():
     res = request.get_json()
-    username = res['username']
-    password = res['password']
+    # username = res['username']
+    # password = res['password']
+
+    username = 'Aksaini'
+    password = '1234qwer'
 
     user = customer.query.filter_by(username=username).first()
     if user and password==user.password:
         login_user(user)
-        products = Products.query.all()        
-        t_products=[]
-        for i in products:
-            t_products.append(str(i))
-        return jsonify({"products":t_products})
+        products = Products.query.all()
+        products_dict = [product.serialize() for product in products]
+        return jsonify(products_dict)
     else:
         return "Incorrect username or password!!"
 
@@ -171,7 +186,7 @@ def place_order():
 
 
 # API For Upload Products
-@app.route('/upload', methods=['GET','POST'])
+@app.route('/add_product', methods=['GET','POST'])
 def upload():
     if request.method=='POST':
         file = request.files['file']
