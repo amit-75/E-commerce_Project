@@ -1,214 +1,276 @@
-from flask import Flask,render_template,url_for,request,session,redirect,flash,jsonify,Response
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager,login_user,UserMixin,logout_user
+'''
+PLACE_ORDER API ARE PENDING  ##############
+'''
+from flask import *
+import sqlite3, hashlib, os
 from werkzeug.utils import secure_filename
-import uuid
-import json
+import requests
+from flask import send_file,Response
+
+conn = sqlite3.connect('database.db')
 
 app = Flask(__name__)
-app.secret_key = 'ksdjf45'
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-
+app.secret_key = 'asdf@1234'
 UPLOAD_FOLDER = 'static/product_images'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = set(['jpeg', 'jpg', 'png', 'gif'])
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Create database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///e-commerce.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# create a model/table in database
-class customer(db.Model,UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    email = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.Integer, nullable=False)
-    Address = db.Column(db.String(100), nullable=False)
-    Pin = db.Column(db.Integer)
-
-    def __repr__(self):
-        return self.username
-
-class seller(db.Model,UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    email = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.Integer, nullable=False)
-    store_name = db.Column(db.String(100),unique=True, nullable=False)
-    Address = db.Column(db.String(100), nullable=False)
-    pin = db.Column(db.Integer)
-
-    def __repr__(self):
-        return self.username
-
-class Products(db.Model,UserMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    Product_name = db.Column(db.String(100), nullable=False)
-    Price = db.Column(db.Integer, nullable=False)
-    Product_image = db.Column(db.String(10000), nullable=False)
-    stock = db.Column(db.Integer, nullable=False)
-
-    def serialize(self):
-        return {
-            'id': self.id,
-            'Product_name': self.Product_name,
-            'Price': self.Price,
-            'stock': self.stock
-        }
-
-    def __repr__(self):
-        return self.Product_name
-
-class order(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    p_name = db.Column(db.String(100),nullable=False)
-    mob_no = db.Column(db.Integer, primary_key=True)
-    quantity = db.Column(db.Integer, nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    seller_email = db.Column(db.String(100),nullable=False)
-    customer_email = db.Column(db.String(100),nullable=False)
-    address = db.Column(db.String(100),nullable=False)
-
-
-@login_manager.user_loader
-def load_user(id):
-    return customer.query.get(int(id))
-
-@app.route('/test')
-def test():
-    products = Products.query.all()
-    products_dict = [product.serialize() for product in products]
-    return jsonify(products_dict)
 
 @app.route('/')
 def index():
     return "Jay Shree Shyam || Jay Shree Radhe || Om Shree Shivaye Namastubhyam || Jay Shree Ram || Jay Shree Ram Jay Hanuman"
 
+@app.route('/search',methods=['POST'])
+def search():
+    search = request.form['search']
+    conn = sqlite3.connect('database.db')
+    try:
+        cur = conn.cursor()
+        data = cur.execute("SELECT * FROM products").fetchall()
+        conn.close()
+        s_products = []
+
+        if search == "":
+            return data
+
+        for i in data:
+            if search in i[1]:
+                s_products.append(i)
+        if s_products == []:
+            return "No Result"
+    except:
+        msg = "Error Occur"
+        return msg
+    return s_products     
+
+
 # API For customer_signup
 @app.route('/customer_signup',methods=['POST'])
 def customer_signup():
-    res = request.get_json()
-    username = res['username']
-    email = res['email']
-    password = res['password']
-    address = res['address']
-    pin = res['pin']
+    if request.method == 'POST':
+        res = request.get_json()   
+        password = res['password']
+        email = res['email']
+        firstName = res['firstName']
+        lastName = res['lastName']
+        address = res['address']
+        city = res['city']
+        state = res['state']
+        country = res['country']
+        phone = res['phone']
 
-    new = customer(
-        username=username,
-        email = email,
-        password=password,
-        Address=address,
-        Pin = pin
-               )
-    db.session.add(new)
-    db.session.commit()
-    return username + " has been register succesfully"
+        with sqlite3.connect('database.db') as conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("INSERT INTO customer (password, email, firstName, lastName, address, city, state, country, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), email, firstName, lastName, address, city, state, country, phone))
+                conn.commit()
+                msg = "Registered Successfully"
+            except:
+                conn.rollback()
+                msg = "Error occured"
+        conn.close()
+        return msg
 
 # API For seller_signup
 @app.route('/seller_signup',methods=['POST'])
 def seller_signup():
-    res = request.get_json()
-    username = res['username']
-    email = res['email']
-    password = res['password']
-    store_name = res['store_name']
-    address = res['address']
-    pin = res['pin']
+    if request.method == 'POST':
+        res = request.get_json()   
+        password = res['password']
+        email = res['email']
+        firstName = res['firstName']
+        lastName = res['lastName']
+        store_name = res['store_name']
+        address = res['address']
+        city = res['city']
+        state = res['state']
+        country = res['country']
+        phone = res['phone']
 
-    new = seller(
-        username=username,
-        email = email,
-        password=password,
-        store_name = store_name,
-        Address=address,
-        pin = pin
-               )
-    db.session.add(new)
-    db.session.commit()
-    return username + " has been register succesfully"
+        conn =  sqlite3.connect('database.db')
+        cur = conn.cursor()
+        cur.execute("INSERT INTO seller (password, email, firstName, lastName,store_name, address, city, state, country, phone) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), email, firstName, lastName,store_name, address, city, state, country, phone))
+        conn.commit()
+        conn.close()
+        return 'Successfully Registered as a seller'
+
+# API For show_products
+@app.route('/show_products',methods=['POST','GET'])
+def show_products():
+    with sqlite3.connect('database.db') as conn:
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM products')
+        products = cur.fetchall()
+        return products
+
+
+def is_valid_customer(email, password):
+    con = sqlite3.connect('database.db')
+    cur = con.cursor()
+    cur.execute('SELECT email, password FROM customer')
+    data = cur.fetchall()
+    for row in data:
+        if row[0] == email and row[1] == hashlib.md5(password.encode()).hexdigest():
+            return True
+    return False
+
+def is_valid_seller(email, password):
+    con = sqlite3.connect('database.db')
+    cur = con.cursor()
+    cur.execute('SELECT email, password FROM seller')
+    data = cur.fetchall()
+    for row in data:
+        if row[0] == email and row[1] == hashlib.md5(password.encode()).hexdigest():
+            return True
+    return False
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def getLoginDetails_customer():
+    with sqlite3.connect('database.db') as conn:
+        cur = conn.cursor()
+        if 'email' not in session:
+            loggedIn = False
+            userId = ""
+            firstName = ""
+            email = ""
+        else:
+            loggedIn = True
+            cur.execute("SELECT customerId, firstName,email FROM customer WHERE email = '" + session['email'] + "'")
+            customerId, firstName,email = cur.fetchone()
+    conn.close()
+    return (customerId,firstName,email,loggedIn)
+
+def getLoginDetails_seller():
+    with sqlite3.connect('database.db') as conn:
+        cur = conn.cursor()
+        if 'email' not in session:
+            loggedIn = False
+            customerId = ""
+            firstName = ""
+            email = ""
+        else:
+            loggedIn = True
+            cur.execute("SELECT seller_Id, firstName,email FROM seller WHERE email = '" + session['email'] + "'")
+            customerId, firstName,email = cur.fetchone()
+    conn.close()
+    return (sellerId,firstName,email,loggedIn)
 
 # API For Customer_Login
 @app.route('/customer_login', methods=['POST'])
 def customer_login():
-    res = request.get_json()
-    # username = res['username']
-    # password = res['password']
+    email = request.form['email']
+    password = request.form['password']
 
-    username = 'Aksaini'
-    password = '1234qwer'
-
-    user = customer.query.filter_by(username=username).first()
-    if user and password==user.password:
-        login_user(user)
-        products = Products.query.all()
-        products_dict = [product.serialize() for product in products]
-        return jsonify(products_dict)
+    if is_valid_customer(email, password):
+        session['email'] = email
+        return redirect(url_for('show_products'))
     else:
-        return "Incorrect username or password!!"
+        error = 'Invalid email / Password'
+        return error
 
 # API For Seller_Login
 @app.route('/seller_login', methods=['POST'])
 def seller_login():
-    res = request.get_json()
-    username = res['username']
-    password = res['password']
-    user = seller.query.filter_by(username=username).first()
-    if user and password==user.password:
-        login_user(user)
-        return "Hii "+username+"! succesfully logged_in"
+    email = request.form['email']
+    password = request.form['password']
+
+    if is_valid_seller(email, password):
+        session['email'] = email
+        return redirect(url_for('show_products'))
     else:
-        return "Incorrect username or password!!"
+        error = 'Invalid email / Password'
+        return error
 
-@app.route('/show_products',methods=['POST','GET'])
-def show_products():
-    products = Products.query.all()
-    return render_template('show_products.html',products=products)
+@app.route('/profile',methods=['POST','GET'])
+def profile():
+    orderId,firstName,email,loggedIn = getLoginDetails_customer()
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM customer WHERE email='"+ email +"' ")
+    data = cur.fetchall()
+    conn.close()
+    return data
 
+@app.route('/your_order')
+def your_order():
+    orderId,firstName,email,loggedIn = getLoginDetails_customer()
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM order WHERE email='"+ email +"' ")
+    data = cur.fetchall()
+    conn.close()
+    return data
 
+@app.route('/your_products')
+def your_products():
+    sellerId,firstName,email,loggedIn = getLoginDetails_seller()
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM products WHERE seller_email='"+ email +"' ")
+    data = cur.fetchall()
+    conn.close()
+    return email
+
+#### NO DATA INSERT INTO ORDER TABLE 
 @app.route('/place_order',methods=['POST'])
 def place_order():
-    p_id = request.form.get('p_id')
-    quantity = request.form.get('quantity')
-    customer_email = request.form.get('customer_email')
-    mob_no = request.form.get('mob_no')
-    address = request.form.get('address')
-    price = request.form.get('price')
-    seller_email = request.form.get('seller_email')
+    customerId,firstName,customer_email,loggedIn = getLoginDetails_customer()
+    if loggedIn == False:
+        return "You are not logged in!"
 
-    new_order = order(p_id=p_id,quantity=quantity,customer_email=customer_email,mob_no=mob_no,address=address,price=price,seller_email=seller_email)
-    db.session.add(new_order)
-    db.session.commit()
-    return 'Order placed'
+    productId = request.args.get('productId')
+    customerId = customerId
 
+    conn = sqlite3.connect('database.db')
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO Orders (productId,customerId) VALUES (?,?) ",(productId,customerId))
+        conn.commit()
+        msg = "Order placed"
+    except sqlite3.OperationalError as e:
+        msg = f"Error occurred: {e}"
+        conn.rollback()
+    finally:
+        conn.close()
+        return msg
 
 # API For Upload Products
-@app.route('/add_product', methods=['GET','POST'])
+@app.route('/add_product', methods=['POST'])
 def upload():
-    if request.method=='POST':
-        file = request.files['file']
-        p_price = request.form.get('Price')
-        p_stock = request.form.get('stock')
+    name = request.form['name']
+    price = request.form['price']
+    stock = request.form['stock']
+    description = request.form['description']
+    file = request.files['file']
+    # Validate the form data
+    if not name or not description or not price:
+        msg = 'Please enter all required fields'
+        return msg
+    if file and not allowed_file(file.filename):
+        msg = 'Invalid file extension'
+        return msg
 
-        if not file and p_stock and p_price:
-            return redirect(url_for('upload'))
+    # If the data is valid, insert a new row into the database
+    with sqlite3.connect('database.db') as conn:
+        try:
+            c = conn.cursor()
+            c.execute("INSERT INTO products (name, description, price, image, stock) VALUES (?, ?, ?, ?, ?)",(name, description, price, file.filename, stock))
+            conn.commit()
+            # Save the image file
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+            msg = "Successfully Uploaded"
+        except:
+            conn.rollback()
+            msg = 'Error Occur'
+    conn.close()
+    return msg
 
-        filename = secure_filename(file.filename)
-        mimetype = file.mimetype
-
-        new_p = Products(Product_image=file.read(),Product_name=filename,Price=p_price,stock=p_stock,)
-        db.session.add(new_p)
-        db.session.commit()
-        flash("Product has been uploaded succesfully..............")
-        return render_template('upload.html')
-    return render_template('upload.html')
-
-
+@app.route("/logout")
+def logout():
+    session.pop('email', None)
+    return "You LoggedOut!!!!!!!!!!"
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug = True)
