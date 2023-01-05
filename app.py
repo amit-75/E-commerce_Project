@@ -1,11 +1,12 @@
 '''
-PLACE_ORDER API ARE PENDING  ##############
+IN YOUR_ORDER API, TAKE PRODUCT_ID AND SHOW ITS DATA ARE PENDING  ##############
 '''
 from flask import *
 import sqlite3, hashlib, os
 from werkzeug.utils import secure_filename
 import requests
 from flask import send_file,Response
+import DB
 
 conn = sqlite3.connect('database.db')
 
@@ -47,51 +48,63 @@ def search():
 @app.route('/customer_signup',methods=['POST'])
 def customer_signup():
     if request.method == 'POST':
-        res = request.get_json()   
-        password = res['password']
-        email = res['email']
-        firstName = res['firstName']
-        lastName = res['lastName']
-        address = res['address']
-        city = res['city']
-        state = res['state']
-        country = res['country']
-        phone = res['phone']
+        res = request.get_json()
+        try:
+            password = res['password']
+            email = res['email']
+            first_name = res['firstName']
+            last_name = res['lastName']
+            address = res['address']
+            city = res['city']
+            state = res['state']
+            country = res['country']
+            phone = res['phone']
+        except KeyError:
+            return "Error: missing fields in request"
 
-        with sqlite3.connect('database.db') as conn:
-            try:
+        try:
+            with sqlite3.connect('database.db') as conn:
                 cur = conn.cursor()
-                cur.execute("INSERT INTO customer (password, email, firstName, lastName, address, city, state, country, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), email, firstName, lastName, address, city, state, country, phone))
+                emails = cur.execute("SELECT email FROM customer WHERE email IS NOT NULL").fetchall()
+                if email in emails:
+                    return "Error: email already registered"
+                cur.execute("INSERT INTO customer (password, email, firstName, lastName, address, city, state, country, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), email, first_name, last_name, address, city, state, country, phone))
                 conn.commit()
-                msg = "Registered Successfully"
-            except:
-                conn.rollback()
-                msg = "Error occured"
-        conn.close()
-        return msg
+                return "Success: customer registered"
+        except sqlite3.Error as e:
+            return f"Error: {e}"
+
 
 # API For seller_signup
 @app.route('/seller_signup',methods=['POST'])
 def seller_signup():
     if request.method == 'POST':
-        res = request.get_json()   
-        password = res['password']
-        email = res['email']
-        firstName = res['firstName']
-        lastName = res['lastName']
-        store_name = res['store_name']
-        address = res['address']
-        city = res['city']
-        state = res['state']
-        country = res['country']
-        phone = res['phone']
+        res = request.get_json()
+        try:
+            password = res['password']
+            Email = res['email']
+            first_name = res['firstName']
+            last_name = res['lastName']
+            store_name = res['store_name']
+            address = res['address']
+            city = res['city']
+            state = res['state']
+            country = res['country']
+            phone = res['phone']
+        except KeyError:
+            return "Error: missing fields in request"
 
-        conn =  sqlite3.connect('database.db')
-        cur = conn.cursor()
-        cur.execute("INSERT INTO seller (password, email, firstName, lastName,store_name, address, city, state, country, phone) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), email, firstName, lastName,store_name, address, city, state, country, phone))
-        conn.commit()
-        conn.close()
-        return 'Successfully Registered as a seller'
+        try:
+            with sqlite3.connect('database.db') as conn:
+                cur = conn.cursor()
+                emails = cur.execute("SELECT email FROM seller WHERE email IS NOT NULL").fetchall()
+                if Email in emails:
+                    return "Error: email already registered"
+                cur.execute("INSERT INTO seller (password, email, firstName, lastName,store_name, address, city, state, country, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (hashlib.md5(password.encode()).hexdigest(), Email, first_name, last_name,store_name, address, city, state, country, phone))
+                conn.commit()
+                return "Success: Seller registered"
+        except sqlite3.Error as e:
+            return f"Error: {e}"
 
 # API For show_products
 @app.route('/show_products',methods=['POST','GET'])
@@ -127,35 +140,51 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def getLoginDetails_customer():
-    with sqlite3.connect('database.db') as conn:
-        cur = conn.cursor()
-        if 'email' not in session:
-            loggedIn = False
-            userId = ""
-            firstName = ""
-            email = ""
-        else:
-            loggedIn = True
-            cur.execute("SELECT customerId, firstName,email FROM customer WHERE email = '" + session['email'] + "'")
-            customerId, firstName,email = cur.fetchone()
-    conn.close()
-    return (customerId,firstName,email,loggedIn)
 
-def getLoginDetails_seller():
-    with sqlite3.connect('database.db') as conn:
-        cur = conn.cursor()
-        if 'email' not in session:
-            loggedIn = False
+def getLoginDetails_customer():
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+    if 'email' not in session:
+        customerId = ""
+        firstName = ""
+        email = ""
+        loggedIn = False
+    else:
+        cur.execute("SELECT customerId, firstName,email FROM customer WHERE email = '" + session['email'] + "'")
+        result = cur.fetchone()
+        if result:
+            customerId, firstName, email = result
+            loggedIn = True
+        else:
             customerId = ""
             firstName = ""
             email = ""
-        else:
-            loggedIn = True
-            cur.execute("SELECT seller_Id, firstName,email FROM seller WHERE email = '" + session['email'] + "'")
-            customerId, firstName,email = cur.fetchone()
+            loggedIn = False
     conn.close()
-    return (sellerId,firstName,email,loggedIn)
+    return (customerId, firstName, email, loggedIn)
+
+def getLoginDetails_seller():
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+    if 'email' not in session:
+        sellerId = ""
+        firstName = ""
+        email = ""
+        loggedIn = False
+    else:
+        cur.execute("SELECT seller_Id, firstName,email FROM seller WHERE email = '" + session['email'] + "'")
+        result = cur.fetchone()
+        if result:
+            sellerId, firstName, email = result
+            loggedIn = True
+        else:
+            sellerId = ""
+            firstName = ""
+            email = ""
+            loggedIn = False
+    conn.close()
+    return (sellerId, firstName, email, loggedIn)
+
 
 # API For Customer_Login
 @app.route('/customer_login', methods=['POST'])
@@ -185,23 +214,42 @@ def seller_login():
 
 @app.route('/profile',methods=['POST','GET'])
 def profile():
-    orderId,firstName,email,loggedIn = getLoginDetails_customer()
     conn = sqlite3.connect('database.db')
     cur = conn.cursor()
-    cur.execute("SELECT * FROM customer WHERE email='"+ email +"' ")
-    data = cur.fetchall()
+    customerId,firstName,email,loggedIn = getLoginDetails_customer()
+
+    if customerId == "":
+        sellerId,firstName,email,loggedIn = getLoginDetails_seller()
+        cur.execute("SELECT * FROM seller WHERE seller_Id='"+ str(sellerId) +"' ")
+        data = cur.fetchall()
+    else:
+        cur.execute("SELECT * FROM customer WHERE customerId='"+ str(customerId) +"' ")
+        data = cur.fetchall()
     conn.close()
     return data
 
 @app.route('/your_order')
 def your_order():
-    orderId,firstName,email,loggedIn = getLoginDetails_customer()
+    customerId,firstName,email,loggedIn = getLoginDetails_customer()
     conn = sqlite3.connect('database.db')
     cur = conn.cursor()
-    cur.execute("SELECT * FROM order WHERE email='"+ email +"' ")
+    cur.execute("SELECT productId FROM Orders WHERE customerId='"+ str(customerId) +"' ")
     data = cur.fetchall()
+
+    if data == []:
+        return "No orders"
+
+    productIds = []
+    for row in data:
+        productIds.append(row[0])
+
+    order_products = []
+    for productId in productIds:
+        p = cur.execute("SELECT * FROM products WHERE productId='"+ str(productId) +"' ").fetchall()
+        order_products.append(p[0])
+
     conn.close()
-    return data
+    return order_products
 
 @app.route('/your_products')
 def your_products():
@@ -211,7 +259,7 @@ def your_products():
     cur.execute("SELECT * FROM products WHERE seller_email='"+ email +"' ")
     data = cur.fetchall()
     conn.close()
-    return email
+    return data
 
 #### NO DATA INSERT INTO ORDER TABLE 
 @app.route('/place_order',methods=['POST'])
@@ -273,4 +321,5 @@ def logout():
     return "You LoggedOut!!!!!!!!!!"
 
 if __name__ == "__main__":
+    DB.database()
     app.run(debug = True)
