@@ -1,6 +1,3 @@
-'''
-IN YOUR_ORDER API, TAKE PRODUCT_ID AND SHOW ITS DATA ARE PENDING  ##############
-'''
 from flask import *
 import sqlite3, hashlib, os
 from werkzeug.utils import secure_filename
